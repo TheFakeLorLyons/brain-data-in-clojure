@@ -1,0 +1,24 @@
+{:deps {org.bytedeco/mkl-platform-redist {:mvn/version "2025.0-1.5.11"}
+        org.scicloj/clay {:mvn/version "2-beta15"}
+        org.scicloj/tableplot {:mvn/version "1-beta9.1"}
+        org.scicloj/metamorph.ml {:mvn/version "0.12"}
+        reagent/reagent {:mvn/version "1.3.0"}
+        scicloj/tablecloth {:mvn/version "7.029.2"}
+        thheller/shadow-cljs {:mvn/version "2.28.21"}
+        us.hebi.matlab.mat/mfl-core {:mvn/version "0.5.15"}
+        uncomplicate/neanderthal {:mvn/version "0.53.2"
+                                  :exclusions [org.bytedeco/openblas-platform]} 
+        generateme/fastmath {:mvn/version "3.0.0-alpha3"}}
+ :paths ["src"]
+ :aliases {:build {:deps {io.github.clojure/tools.build {:git/tag "v0.10.7" :git/sha "573711e"}}
+            :ns-default build}
+           :prod {:main-opts ["-m" "shadow.cljs.devtools.cli" "watch" "app"]}
+           :dev {:extra-paths ["dev"]
+                 :extra-deps {ring/ring-devel {:mvn/version "1.12.2"}}}}
+                 :flowstorm-local {:classpath-overrides {org.clojure/clojure nil}
+                                   :extra-deps {com.github.flow-storm/clojure {:mvn/version "RELEASE"}
+                                                com.github.flow-storm/flow-storm-dbg {:mvn/version "RELEASE"}}
+                                   :jvm-opts ["-Dflowstorm.startRecording=false"
+                                              "-Dclojure.storm.instrumentEnable=true"
+                                              #_"-Dclojure.storm.instrumentAutoPrefixes=true"
+                                              "-Dclojure.storm.instrumentOnlyPrefixes=bci_project."]}}

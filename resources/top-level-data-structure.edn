@@ -1,0 +1,29 @@
+{:srate 512.0,
+ :movement_event {:dims [1 71680], :type "double", :elements 71680},
+ :frame {:dims [1 2], :type "double", :elements 2},
+ :movement_right {:dims [68 71680], :type "single", :elements 4874240},
+ :imagery_right
+ {:dims [68 358400], :type "single", :elements 24371200},
+ :movement_left {:dims [68 71680], :type "single", :elements 4874240},
+ :noise
+ [[{:dims [68 5120], :type "single", :elements 348160}]
+  [{:dims [68 5120], :type "single", :elements 348160}]
+  [{:dims [68 5120], :type "single", :elements 348160}]
+  [{:dims [68 5120], :type "single", :elements 348160}]
+  [{:dims [68 5120], :type "single", :elements 348160}]],
+ :n_imagery_trials 100.0,
+ :n_movement_trials 20.0,
+ :comment nil,
+ :psenloc {:dims [64 3], :type "double", :elements 192},
+ :bad_trial_indices
+ {:bad_trial_idx_voltage
+  [[{:dims [0 0], :type "double", :elements 0}
+    {:dims [0 0], :type "double", :elements 0}]],
+  :bad_trial_idx_mi
+  [[{:dims [0 1], :type "double", :elements 0}
+    {:dims [0 1], :type "double", :elements 0}]]},
+ :senloc {:dims [64 3], :type "double", :elements 192},
+ :subject nil,
+ :rest {:dims [68 34048], :type "single", :elements 2315264},
+ :imagery_left {:dims [68 358400], :type "single", :elements 24371200},
+ :imagery_event {:dims [1 358400], :type "double", :elements 358400}}
