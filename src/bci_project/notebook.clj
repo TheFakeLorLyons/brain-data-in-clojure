@@ -135,59 +135,59 @@
 
 (defn comprehensive-eeg-analysis
   "Analyze EEG data with movement events and display complete results"
-  [data-atom]
-  (let [sample-number (:sample_number @data-atom)
-        time-window [83 90]
-        channel-indices [6 13 14 48 49 50 60 63]
+  ([data-atom]
+   (comprehensive-eeg-analysis data-atom [105 112] [6 13 14 48 49 50 60 63]))
+  ([data-atom time-window channel-indices]
+   (let [sample-number (:sample_number @data-atom)
+         movement-analysis (analyze-movement-events data-atom time-window)
 
-        movement-analysis (analyze-movement-events data-atom time-window)
+         movement-chart (eeg-visualization data-atom channel-indices time-window :movement_event)
+         imagery-chart (eeg-visualization brain/eeg-data-atom channel-indices time-window :imagery_event)
 
-        movement-chart (eeg-visualization data-atom channel-indices time-window :movement_event)
-        imagery-chart (eeg-visualization brain/eeg-data-atom channel-indices time-window :imagery_event)
+         non-zero-times (get-in movement-analysis [:analysis :non-zero-times])
+         non-zero-count (get-in movement-analysis [:analysis :non-zero-count])
+         total-samples (get-in movement-analysis [:analysis :total-samples])
 
-        non-zero-times (get-in movement-analysis [:analysis :non-zero-times])
-        non-zero-count (get-in movement-analysis [:analysis :non-zero-count])
-        total-samples (get-in movement-analysis [:analysis :total-samples])
-
-        formatted-times (map #(format "%.2fs" (double %)) non-zero-times)]
-    (kind/hiccup
-     [:div
-      [:h1 "EEG Data Analysis"]
-      [:h3 "Sample Number: " sample-number]
-      [:p "This analysis is intended to recreate data from the following
+         formatted-times (map #(format "%.2fs" (double %)) non-zero-times)]
+     (kind/hiccup
+      [:div
+       [:h1 "EEG Data Analysis"]
+       [:h3 "Sample Number: " sample-number]
+       [:p "This analysis is intended to recreate data from the following
            study: https://gigadb.org/dataset/view/id/100295/"]
-      [:p "The data was taken via a Biosemi ActiveTwo [BCI] system."]
-      [:p "The data was initially matlab data that I have converted
+       [:p "The data was taken via a Biosemi ActiveTwo [BCI] system."]
+       [:p "The data was initially matlab data that I have converted
            to edn."]
 
-      [:p "The positioning of the sensors: "]
-      [:div
-       (kind/image dims-image)]
+       [:p "The positioning of the sensors: "]
+       [:div
+        (kind/image dims-image)]
 
-      [:div.movement-summary
-       [:h2 "Movement Event Analysis Summary"]
-       [:ul
-        [:li [:strong "Total movement events: "] non-zero-count]
-        [:li [:strong "Total samples analyzed: "] total-samples]
-        [:li [:strong "Event moments: "]
-         [:div {:style "max-height: 100px; overflow-y: auto;"}
-          (clojure.string/join ", " formatted-times)]]]]
-      [:div
-       [:h2 "EEG Channels"]
-       [:div movement-chart]]
-
-      [:div.imagery-summary
-       [:h2 "Imagery Event Analysis Summary"]
-       [:ul
-        [:li [:strong "Total imagery events: "] non-zero-count]
-        [:li [:strong "Total samples analyzed: "] total-samples]
-        [:li [:strong "Event moments: "]
-         [:div {:style "max-height: 100px; overflow-y: auto;"}
-          (clojure.string/join ", " formatted-times)]]]
+       [:div.movement-summary
+        [:h2 "Movement Event Analysis Summary"]
+        [:ul
+         [:li [:strong "Total movement events: "] non-zero-count]
+         [:li [:strong "Total samples analyzed: "] total-samples]
+         [:li [:strong "Event moments: "]
+          [:div {:style "max-height: 100px; overflow-y: auto;"}
+           (clojure.string/join ", " formatted-times)]]]]
        [:div
         [:h2 "EEG Channels"]
-        [:div imagery-chart]]]])))
+        [:div movement-chart]]
+
+       [:div.imagery-summary
+        [:h2 "Imagery Event Analysis Summary"]
+        [:ul
+         [:li [:strong "Total imagery events: "] non-zero-count]
+         [:li [:strong "Total samples analyzed: "] total-samples]
+         [:li [:strong "Event moments: "]
+          [:div {:style "max-height: 100px; overflow-y: auto;"}
+           (clojure.string/join ", " formatted-times)]]]
+        [:div
+         [:h2 "EEG Channels"]
+         [:div imagery-chart]]]]))))
 
 (defn -main []
-  (brain/load-eeg-data! "resources/data/s01.mat")
-  (comprehensive-eeg-analysis brain/eeg-data-atom))
+  (brain/load-eeg-data! "resources/data/s01.mat") 
+  #_(comprehensive-eeg-analysis brain/eeg-data-atom) ;also works
+  (comprehensive-eeg-analysis brain/eeg-data-atom [24 31] [13 49]))

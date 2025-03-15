@@ -1,5 +1,5 @@
 # Brain data in Clojure
-This clay notebook is analysis and visualization of an existing brain study from 2017 that explores left and right hand motor imagery (MI) data. The goal is to process, analyze, and visualize EEG signals in order to better understand the brain's electrical activity during motor imagery tasks. By leveraging various Clojure tools and libraries, this project aims to make it easy for researchers to explore and extract meaningful insights from these brain data sets.
+This clay notebook is analysis and visualization of an existing brain study from 2017 that explores left and right hand motor imagery (MI) data. The goal is to process, analyze, and visualize EEG signals in order to better understand the brain's electrical activity during MI tasks, and compare that activity to activity during actual movement events. By leveraging various Clojure tools and libraries, this project aims to make it easy for researchers to explore and extract meaningful insights from these brain data sets.
 
 __Prerequisites__ 
     To run this project, you'll need:

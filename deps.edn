@@ -1,10 +1,8 @@
 {:deps {org.bytedeco/mkl-platform-redist {:mvn/version "2025.0-1.5.11"}
-        org.scicloj/clay {:mvn/version "2-beta15"}
-        org.scicloj/tableplot {:mvn/version "1-beta9.1"}
-        org.scicloj/metamorph.ml {:mvn/version "0.12"}
-        reagent/reagent {:mvn/version "1.3.0"}
-        scicloj/tablecloth {:mvn/version "7.029.2"}
-        thheller/shadow-cljs {:mvn/version "2.28.21"}
+        org.scicloj/clay {:mvn/version "2-beta32"}
+        org.scicloj/tableplot {:mvn/version "1-beta11"}
+        org.scicloj/metamorph.ml {:mvn/version "1.2"}
+        scicloj/tablecloth {:mvn/version "7.042"}
         us.hebi.matlab.mat/mfl-core {:mvn/version "0.5.15"}
         uncomplicate/neanderthal {:mvn/version "0.53.2"
                                   :exclusions [org.bytedeco/openblas-platform]} 

@@ -1,1 +1,1 @@
-{:source-path ["src/bci_project/wave_memory.clj"]} ;core for the brain stuff
+{:source-path ["src/bci_project/brain.clj"]}
