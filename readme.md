@@ -13,16 +13,20 @@ __Prerequisites__
 ## How to Use
 1. Download the MATLAB Files
 The first step is to download the necessary MATLAB .mat files containing the EEG data. A Babashka script is included in this project to automate the downloading process. Run the script to retrieve the dataset from the study.
+  - The babashka script will by default download `s01.mat` to './resources/data/s01.mat' with the following command in the root directory: `'bb brainscript.clj'`
+  - The flag `'-s'` (number) will download a specific study from the online database.
+  - The flag `'-r'` (number) - (number)" will download a range of files from the online database.
+  - The flag `'-a'` will download all the files in the study.
 
 2. Load EEG Data
 Once the dataset has been downloaded, the next step is to load the EEG data from the MATLAB .mat file into your Clojure environment. You can do this by calling the load-eeg-data! function. Here’s an example:
 
-   `(load-eeg-data! "path/to/your/file.mat")`
+   `(load-eeg-data! "resources/data/s01.mat")`
 
     This will load the data into the eeg-data-atom and preprocess it for further analysis.
 
 3. Visualization
-The following function will read whatever mat file was loaded into the eeg-data-atom and display the movement and imagery data for selected sensor locations at a specified time range in the comprehensive-eeg-analysis visualization function.
+The following function will read whatever `.mat` file was loaded into the eeg-data-atom and display the movement and imagery data for selected sensor locations at a specified time range in the comprehensive-eeg-analysis visualization function.
 
    `(comprehensive-eeg-analysis brain/eeg-data-atom)`
 
