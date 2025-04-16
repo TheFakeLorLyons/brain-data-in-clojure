@@ -1,3 +1,4 @@
+^:kindly/hide-code
 (ns bci-project.notebook
   (:require [bci-project.brain :as brain]
             [bci-project.components :as ui]
@@ -7,8 +8,10 @@
   (:import java.io.File
            javax.imageio.ImageIO))
 
+^:kindly/hide-code
 (def SRATE 512)
 
+^:kindly/hide-code
 (defn analyze-movement-events
   [event-data time-range]
   (let [event-values (if (map? event-data)
@@ -47,6 +50,7 @@
                 :non-zero-count (count non-zero-indices)
                 :non-zero-times (vec non-zero-times)}}))
 
+^:kindly/hide-code
 (defn get-channel-data
   [eeg-values ch-idx time-window]
   (when (and ch-idx (< ch-idx (count eeg-values)))
@@ -58,6 +62,7 @@
                 (min start-sample (count channel-data))
                 (min end-sample (count channel-data)))))))
 
+^:kindly/hide-code
 (defn prepare-eeg-dataset
   [eeg-values channel-indices start-sample end-sample]
   (into {}
@@ -77,6 +82,7 @@
               :channel (str "Channel " ch-idx)
               :channel-index ch-idx})])))
 
+^:kindly/hide-code
 (defn prepare-events-dataset
   [event-values start-sample end-sample event-type]
   (keep-indexed
@@ -92,6 +98,7 @@
                                   event-values)
      :else [])))
 
+^:kindly/hide-code
 (defn individual-eeg-chart
   [channel-data events-dataset start-time end-time]
   (kind/vega-lite
@@ -120,6 +127,7 @@
                                   {:field "amplitude", :title "Amplitude", :type "quantitative"}]}}]
     :selection {:grid {:type "interval", :bind "scales"}}}))
 
+^:kindly/hide-code
 (defn filter-single-channel
   [data ch-idx time-window frequency-band eeg-key]
   (let [eeg-data (eeg-key @data)
@@ -128,8 +136,6 @@
         filter-padding 1
         filter-time-window [(- (first time-window) filter-padding)
                             (+ (second time-window) filter-padding)]
-
-        [low-freq high-freq] (sig/frequency-range frequency-band)
 
         channel-data (get-channel-data eeg-values ch-idx filter-time-window)
         filtered (sig/filter-by-frequency-band (vec channel-data) frequency-band SRATE)
@@ -161,6 +167,7 @@
                             {:field "amplitude", :type "quantitative"}]}
        :selection {:grid {:type "interval", :bind "scales"}}})]))
 
+^:kindly/hide-code
 (defn eeg-visualization
   [data channel-indices time-window frequency-band event-type eeg-key]
   (try
@@ -198,9 +205,11 @@
               [:div.charts-with-picture {:style "flex-grow: 1;"}
                [:div.raw-and-filtered {:style "display: flex; flex-direction: column;"}
                 (individual-eeg-chart (get channels-data ch-idx) non-zero-events start-time end-time)
-                (filter-single-channel data ch-idx time-window frequency-band eeg-key)]]
+                (filter-single-channel data ch-idx time-window frequency-band eeg-key)
+                (when (not (= ch-idx (last channel-indices)))
+                  [:p {:style {:align-self "center"}} "----------------------------------------------"])]]
               (when (or (= eeg-key :imagery_left) (= eeg-key :movement_left))
-                [:div.head-model {:style {:display "flex" :width "175px" :height "175px"}}
+                [:div.head-model {:style {:display "flex" :width "190px" :height "190px"}}
                  (kind/image
                   (ImageIO/read (File. (str "resources/images/channel-labels" image-label ".png"))))])]])]]]))
     (catch Exception e
@@ -210,12 +219,14 @@
        [:h2 "Error Visualizing EEG Data"]
        [:p "An error occurred: " (.getMessage e)]])))
 
+^:kindly/hide-code
 (defn generate-chart
   [data-atom channel-indices time-window event-type side frequency-band]
   (let [event-key (keyword (str (name event-type) "_event"))
         eeg-key (keyword (str (name event-type) "_" (name side)))]
       (eeg-visualization data-atom channel-indices time-window frequency-band event-key eeg-key)))
 
+^:kindly/hide-code
 (defn build-category-section
   [data-atom channel-indices time-window event-type frequency-band]
   (let [event-key (keyword (str (name event-type) "_event"))
@@ -223,25 +234,32 @@
         events-count (get-in analysis [:analysis :non-zero-count])
         event-name (clojure.string/capitalize (name event-type))]
     [:div.event-section.viz-container
-     [:h2 (str event-name " Events")]
-     [:p "Total " (name event-type) " events in selected time window: " events-count]
+     [:h3 {:style {:padding-left "300px"}}
+      (str event-name " Events")]
+     [:p {:style {:padding-left "450px"}}
+      "Total " (name event-type) " events in selected time window: " events-count]
 
      [:div {:style {:display "flex"}}
       [:div
-       [:h3 "Left Side"]
+       [:h3 {:style {:font-weight "bold"}}
+        "Left Side"]
        [:div {:style {:display "flex"}}
         [:div (generate-chart data-atom channel-indices time-window event-type :left frequency-band)]]]
 
-      [:div [:h3 "Right Side"]
+      [:div
+       [:h3 {:style {:font-weight "bold"}}
+        "Right Side"]
        [:div {:style {:display "flex"}}
         [:div (generate-chart data-atom channel-indices time-window event-type :right frequency-band)]]]]]))
 
+^:kindly/hide-code
 (defn movement-and-imagery-visualized
   [data-atom channel-indices time-window frequency-band]
   [:div.raw-data-section.viz-container
    (build-category-section data-atom channel-indices time-window :movement frequency-band)
    (build-category-section data-atom channel-indices time-window :imagery frequency-band)])
 
+^:kindly/hide-code
 (defn comprehensive-eeg-analysis
   ([data-atom]
    (comprehensive-eeg-analysis data-atom [0 10] [6 13 14 48 49 50 60 63] :alpha))
@@ -251,16 +269,29 @@
    (let [id (str "eeg-viz-" (System/currentTimeMillis))
          sample-number (:sample_number @data-atom)]
      (kind/hiccup
-      [:div {:id id :style {:text-align "left"
-                            :margin 0
-                            :max-width "100vw"}}
+      [:div.column-screen {:id id
+                           :style {:display "flex"
+                                   :flex-direction "column"
+                                   :max-width "100vw"}}
        (ui/notebook-heading sample-number)
-       [:h2 "Comprehensive EEG Data Analysis"]
-       (movement-and-imagery-visualized data-atom channel-indices time-window frequency-band)]))))
+       [:h2 {:style {:text-align "center"}}
+        "Comprehensive EEG Data Analysis"]
+       [:div.chart-container {:style {:display "flex"
+                                      :flex-direction "column"
+                                      :align-self "center"
+                                      :justify-content "center"}}
+        (movement-and-imagery-visualized data-atom channel-indices time-window frequency-band)]]))))
 
+^:kindly/hide-code
 (defn -main []
   (brain/load-eeg-data! "resources/data/s01.mat")
   #_(comprehensive-eeg-analysis brain/eeg-data-atom))
 
+;uncomment this and run the code with quarto after using 'loag-eeg-data'
+^:kindly/hide-code
+#_(comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 49])
+
+^:kindly/hide-code
 (comment
-  (comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 49]))
+  (comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 49])
+  )

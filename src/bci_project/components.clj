@@ -16,6 +16,8 @@
       [:a {:href "https://gigadb.org/dataset/view/id/100295/" :target "_blank"} "GigaDB Dataset"]]
      [:p "The data was taken via a Biosemi ActiveTwo [BCI] system."]
      [:p "The data was initially matlab data that I have converted to edn."]
-     [:p {:style {:left "200px"}} "The positioning of the sensors: "]
+     
+     [:br]
+     [:p {:style {:font-weight "bold" :padding-right "550px"}} "The positioning of the sensors: "]
      [:div
       (kind/image dims-image)]])
