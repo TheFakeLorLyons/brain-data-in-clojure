@@ -124,7 +124,7 @@
      :else [])))
 
 ^:kindly/hide-code
-(defn individual-eeg-chart
+(defn raw-eeg-timeseries
   [channel-data events-dataset start-time end-time]
   (kind/vega-lite
    {:width 600
@@ -193,7 +193,7 @@
        :selection {:grid {:type "interval", :bind "scales"}}})]))
 
 ^:kindly/hide-code
-(defn eeg-visualization
+(defn eeg-templates
   [data channel-indices time-window frequency-band event-type eeg-key]
   (try
     (let [eeg-data (eeg-key @data)
@@ -229,7 +229,7 @@
                 position-label]]
               [:div.charts-with-picture {:style "flex-grow: 1;"}
                [:div.raw-and-filtered {:style "display: flex; flex-direction: column;"}
-                (individual-eeg-chart (get channels-data ch-idx) non-zero-events start-time end-time)
+                (raw-eeg-timeseries (get channels-data ch-idx) non-zero-events start-time end-time)
                 (filter-single-channel data ch-idx time-window frequency-band eeg-key)
                 (when (not (= ch-idx (last channel-indices)))
                   [:p {:style {:align-self "center"}} "----------------------------------------------"])]]
@@ -249,10 +249,10 @@
   [data-atom channel-indices time-window event-type side frequency-band]
   (let [event-key (keyword (str (name event-type) "_event"))
         eeg-key (keyword (str (name event-type) "_" (name side)))]
-    (eeg-visualization data-atom channel-indices time-window frequency-band event-key eeg-key)))
+    (eeg-templates data-atom channel-indices time-window frequency-band event-key eeg-key)))
 
 ^:kindly/hide-code
-(defn build-category-section
+(defn build-chart-category-section
   [data-atom channel-indices time-window event-type frequency-band]
   (let [event-key (keyword (str (name event-type) "_event"))
         analysis (analyze-movement-events (event-key @data-atom) time-window)
@@ -281,8 +281,8 @@
 (defn movement-and-imagery-visualized
   [data-atom channel-indices time-window frequency-band]
   [:div.raw-data-section.viz-container
-   (build-category-section data-atom channel-indices time-window :movement frequency-band)
-   (build-category-section data-atom channel-indices time-window :imagery frequency-band)])
+   (build-chart-category-section data-atom channel-indices time-window :movement frequency-band)
+   (build-chart-category-section data-atom channel-indices time-window :imagery frequency-band)])
 
 ^:kindly/hide-code
 (defn comprehensive-eeg-analysis
@@ -309,13 +309,11 @@
 
 ^:kindly/hide-code
 (defn -main []
-  (brain/load-eeg-data! "resources/data/s01.mat")
-  (-> brain/eeg-data-atom
-      (sig/process-and-save-common-average-references)
-      (sig/load-avg-ref-data!))
+  (brain/initial-data-preparation "resources/data/s13.mat")
   (comprehensive-eeg-analysis brain/eeg-data-atom))
 
-(sig/load-avg-ref-data! brain/eeg-data-atom)
+#_(sig/load-avg-ref-data! brain/eeg-data-atom)
+#_(sig/process-and-save-common-average-references brain/eeg-data-atom)
 ;test to see this work(keys @brain/eeg-data-atom);check load-eeg-data to see if these files exist, if not create them
 
 ^:kindly/hide-code

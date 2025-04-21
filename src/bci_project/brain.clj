@@ -1,5 +1,6 @@
 (ns bci-project.brain
-  (:require [clojure.pprint :refer [pprint]])
+  (:require [bci-project.signal :as sig]
+            [clojure.pprint :refer [pprint]])
   (:import [us.hebi.matlab.mat.format Mat5]
            [us.hebi.matlab.mat.types Struct Array Matrix Cell]))
 
@@ -12,7 +13,7 @@
   {:real real :imag imag})
 
 (defn convert-element
-  "Convert a MATLAB element to appropriate Clojure data structure"
+  "MATLAB element to appropriate Clojure data structure"
   [element]
   (cond
     (instance? Struct element) (struct->map element)
@@ -21,7 +22,7 @@
     :else nil))
 
 (defn cell->vec
-  "Convert a MATLAB cell array to a Clojure vector"
+  "MATLAB cell array to a Clojure vector"
   [cell]
   (when cell
     (let [dims (.getDimensions cell)
@@ -33,7 +34,7 @@
                       (convert-element element)))))))))
 
 (defn array->vec
-  "Convert a MATLAB array to a Clojure vector"
+  "MATLAB array to a Clojure vector"
   [array]
   (when array
     (let [dims (.getDimensions array)
@@ -53,7 +54,7 @@
                         (catch Exception _ nil))))))))))
 
 (defn matrix->vec
-  "Convert a verbose MATLAB matrix to a Clojure vector up to 2-dimensions."
+  "MATLAB matrix to a Clojure vector up to 2-dimensions."
   [matrix]
   (when matrix
     (let [dims (.getDimensions matrix)
@@ -76,7 +77,7 @@
           (assoc metadata :values values))))))
 
 (defn struct->map
-  "Verbose MATLAB struct to a Clojure map"
+  "MATLAB struct to a Clojure map"
   [struct]
   (when struct
     (let [field-names (.getFieldNames struct)]
@@ -129,4 +130,6 @@
                                                                 :movement_event :imagery_event
                                                                 :senloc         :psenloc])))}))
 
-#_(load-eeg-data! "resources/data/s02.mat") ;read the relevant parts of a file into the eeg-data-atom
+(defn initial-data-preparation [file-path]
+  (load-eeg-data! file-path)
+  (sig/process-and-save-common-average-references eeg-data-atom))
