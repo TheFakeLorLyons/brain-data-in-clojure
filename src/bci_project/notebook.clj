@@ -50,6 +50,7 @@
                 :non-zero-count (count non-zero-indices)
                 :non-zero-times (vec non-zero-times)}}))
 
+^:kindly/hide-code
 (defn detect-bad-trials
   "Detect bad trials based on amplitude threshold
    Parameters:
@@ -152,6 +153,34 @@
                                   {:field "amplitude", :title "Amplitude", :type "quantitative"}]}}]
     :selection {:grid {:type "interval", :bind "scales"}}}))
 
+(defn avg-ref-eeg-timeseries
+  [channel-data events-dataset start-time end-time]
+  (kind/vega-lite
+   {:width 600
+    :height 120
+    :layer [{:data {:values events-dataset}
+             :mark {:type "rule"
+                    :color "red"
+                    :strokeWidth 1.5
+                    :opacity 0.8}
+             :encoding {:x {:field "time"
+                            :type "quantitative"
+                            :scale {:domain [start-time end-time]}}}}
+            {:data {:values channel-data}
+             :mark {:type "line", :color "purple"}
+             :encoding {:x {:field "time"
+                            :type "quantitative"
+                            :axis {:title "Time (s)"}
+                            :scale {:domain [start-time end-time]}}
+                        :y {:field "amplitude"
+                            :type "quantitative"
+                            :axis {:title "Amplitude (μV)"}
+                            :scale {:zero false}}
+                        :tooltip [{:field "channel", :type "nominal"}
+                                  {:field "time", :type "quantitative", :format ".2f"}
+                                  {:field "amplitude", :title "Amplitude", :type "quantitative"}]}}]
+    :selection {:grid {:type "interval", :bind "scales"}}}))
+
 ^:kindly/hide-code
 (defn filter-single-channel
   [data ch-idx time-window frequency-band eeg-key]
@@ -193,11 +222,68 @@
        :selection {:grid {:type "interval", :bind "scales"}}})]))
 
 ^:kindly/hide-code
+(defn filter-avg-ref-channel
+  [data ch-idx time-window frequency-band eeg-key]
+  (let [avg-ref-key (case eeg-key
+                      :movement_left :avg_ref_mvmt_left
+                      :movement_right :avg_ref_mvmt_right
+                      :imagery_left :avg_ref_img_left
+                      :imagery_right :avg_ref_img_right
+                      nil)
+
+        avg-ref-data (avg-ref-key @data)
+
+        avg-ref-values (:values avg-ref-data)
+        filter-padding 1
+        filter-time-window [(- (first time-window) filter-padding)
+                            (+ (second time-window) filter-padding)]
+        channel-data (get-channel-data avg-ref-values ch-idx filter-time-window)
+        filtered (sig/band-pass-butterworth-filter (vec channel-data) frequency-band SRATE)
+        padding-samples (int (* filter-padding SRATE))
+        display-filtered (subvec filtered
+                                 padding-samples
+                                 (- (count filtered) padding-samples))
+        dataset (mapv (fn [i]
+                        {:time (+ (first time-window) (/ i SRATE))
+                         :amplitude (nth display-filtered i)
+                         :channel-index ch-idx})
+                      (range (count display-filtered)))]
+    [:div.filtered-chart
+     (kind/vega-lite
+      {:width 600
+       :height 120
+       :mark {:type "line", :color "green"}
+       :data {:values dataset}
+       :encoding {:x {:field "time"
+                      :type "quantitative"
+                      :axis {:title "Time (s)"}
+                      :scale {:domain time-window}}
+                  :y {:field "amplitude"
+                      :type "quantitative"
+                      :axis {:title "Amplitude (μV)"}
+                      :scale {:zero false}}
+                  :tooltip [{:field "channel-index", :title "Channel", :type "nominal"}
+                            {:field "time", :type "quantitative", :format ".2f"}
+                            {:field "amplitude", :type "quantitative"}]}
+       :selection {:grid {:type "interval", :bind "scales"}}})]))
+
+^:kindly/hide-code
 (defn eeg-templates
   [data channel-indices time-window frequency-band event-type eeg-key]
   (try
     (let [eeg-data (eeg-key @data)
           eeg-values (:values eeg-data)
+
+          avg-ref-key (case eeg-key
+                        :movement_left :avg_ref_mvmt_left
+                        :movement_right :avg_ref_mvmt_right
+                        :imagery_left :avg_ref_img_left
+                        :imagery_right :avg_ref_img_right
+                        nil)
+
+          avg-ref-data (when avg-ref-key (avg-ref-key @data))
+          avg-ref-values (when avg-ref-data (:values avg-ref-data))
+          
 
           events (event-type @data)
           event-values (:values events)
@@ -208,6 +294,8 @@
           end-sample (min (int (* end-time SRATE)) (second (:dims eeg-data)))
 
           channels-data (prepare-eeg-dataset eeg-values channel-indices start-sample end-sample)
+          avg-ref-channels-data (when avg-ref-values
+                                  (prepare-eeg-dataset avg-ref-values channel-indices start-sample end-sample))
           non-zero-events (prepare-events-dataset event-values start-sample end-sample event-type)
 
           sorted-channels (sort channel-indices)]
@@ -231,6 +319,8 @@
                [:div.raw-and-filtered {:style "display: flex; flex-direction: column;"}
                 (raw-eeg-timeseries (get channels-data ch-idx) non-zero-events start-time end-time)
                 (filter-single-channel data ch-idx time-window frequency-band eeg-key)
+                (avg-ref-eeg-timeseries (get avg-ref-channels-data ch-idx) non-zero-events start-time end-time)
+                (filter-avg-ref-channel data ch-idx time-window frequency-band eeg-key)
                 (when (not (= ch-idx (last channel-indices)))
                   [:p {:style {:align-self "center"}} "----------------------------------------------"])]]
               (when (or (= eeg-key :imagery_left) (= eeg-key :movement_left))
@@ -309,12 +399,8 @@
 
 ^:kindly/hide-code
 (defn -main []
-  (brain/initial-data-preparation "resources/data/s13.mat")
+  (brain/initial-data-preparation "resources/data/s12.mat")`
   (comprehensive-eeg-analysis brain/eeg-data-atom))
-
-#_(sig/load-avg-ref-data! brain/eeg-data-atom)
-#_(sig/process-and-save-common-average-references brain/eeg-data-atom)
-;test to see this work(keys @brain/eeg-data-atom);check load-eeg-data to see if these files exist, if not create them
 
 ^:kindly/hide-code
 #_(comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 33 49])

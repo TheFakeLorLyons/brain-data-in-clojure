@@ -48,8 +48,6 @@
   (let [eeg-data @eeg-data-atom
         missing-keys (filter #(not (contains? eeg-data %)) avg-ref-keys)]
 
-    (println "Missing keys:" missing-keys)
-
     (when (seq missing-keys)
       (let [sample-number (:sample_number eeg-data)
             base-path (str "resources/average-referencing/s" sample-number)
@@ -130,18 +128,6 @@
                          {}
                          movement-keys)]
       result))
-
-(defn apply-precomputed-car
-  "Apply pre-computed common average reference to a specific channel
-   Parameters:
-     - channel-data: Vector of signal values for a single channel
-     - car-values: Pre-computed CAR values (from 'load-common-average-reference')
-     - start-idx: Start index in the original data
-     - end-idx: End index in the original data"
-  [channel-data car-values start-idx end-idx]
-  (let [common-avg (:common-average car-values)
-        section-avg (subvec common-avg start-idx end-idx)]
-    (mapv - channel-data section-avg)))
 
 (defn frequency-range
   [band-name]

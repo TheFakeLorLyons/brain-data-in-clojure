@@ -26,7 +26,7 @@
   [cell]
   (when cell
     (let [dims (.getDimensions cell)
-          rows (first dims) 
+          rows (first dims)
           cols (second dims)]
       (vec (for [i (range rows)]
              (vec (for [j (range cols)]
@@ -107,6 +107,7 @@
 (defn load-eeg-data!
   "Load EEG data from a MATLAB file into the eeg-data-atom with preprocessing"
   [file-path]
+  (reset! eeg-data-atom nil)
   (let [mat-file (Mat5/readFromFile (clojure.java.io/file file-path))
         eeg-struct (.getStruct mat-file "eeg")
         sample-number (if-let [matches (re-find #"s(\d+)\.mat" file-path)]
