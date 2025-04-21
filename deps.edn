@@ -9,6 +9,7 @@
         us.hebi.matlab.mat/mfl-core {:mvn/version "0.5.15"}
         uncomplicate/neanderthal {:mvn/version "0.53.2"
                                   :exclusions [org.bytedeco/openblas-platform]}
+        uncomplicate/commons {:mvn/version "0.16.1"}
         generateme/fastmath {:mvn/version "3.0.0-alpha3"}}
  :paths ["src" "resources"]
  :aliases {:build {:deps {io.github.clojure/tools.build {:git/tag "v0.10.7" :git/sha "573711e"}}

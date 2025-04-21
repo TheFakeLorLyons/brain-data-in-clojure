@@ -50,6 +50,31 @@
                 :non-zero-count (count non-zero-indices)
                 :non-zero-times (vec non-zero-times)}}))
 
+(defn detect-bad-trials
+  "Detect bad trials based on amplitude threshold
+   Parameters:
+     - trials: Vector of trial data, each trial is a vector of channel data
+     - srate: Sampling rate (Hz)
+     - threshold: Amplitude threshold (μV)
+     - time-window: [start-ms end-ms] window to analyze"
+  [trials threshold time-window band]
+  (let [start-sample (int (* (/ (first time-window) 1000) SRATE))
+        end-sample (int (* (/ (second time-window) 1000) SRATE))]
+    (filterv
+     (fn [trial-idx]
+       (let [trial-data (nth trials trial-idx)
+             ;; Filter in the SMR band (8-30 Hz)
+             filtered-data (for [channel trial-data]
+                             (sig/band-pass-butterworth-filter channel band SRATE))
+             ;; Check if any channel exceeds the threshold in the time window
+             exceeds-threshold? (some (fn [channel]
+                                        (let [window-data (subvec channel start-sample end-sample)]
+                                          (or (> (apply max window-data) threshold)
+                                              (< (apply min window-data) (- threshold)))))
+                                      filtered-data)]
+         exceeds-threshold?))
+     (range (count trials)))))
+
 ^:kindly/hide-code
 (defn get-channel-data
   [eeg-values ch-idx time-window]
@@ -138,7 +163,7 @@
                             (+ (second time-window) filter-padding)]
 
         channel-data (get-channel-data eeg-values ch-idx filter-time-window)
-        filtered (sig/filter-by-frequency-band (vec channel-data) frequency-band SRATE)
+        filtered (sig/band-pass-butterworth-filter (vec channel-data) frequency-band SRATE)
         padding-samples (int (* filter-padding SRATE))
         display-filtered (subvec filtered
                                  padding-samples
@@ -224,7 +249,7 @@
   [data-atom channel-indices time-window event-type side frequency-band]
   (let [event-key (keyword (str (name event-type) "_event"))
         eeg-key (keyword (str (name event-type) "_" (name side)))]
-      (eeg-visualization data-atom channel-indices time-window frequency-band event-key eeg-key)))
+    (eeg-visualization data-atom channel-indices time-window frequency-band event-key eeg-key)))
 
 ^:kindly/hide-code
 (defn build-category-section
@@ -234,7 +259,7 @@
         events-count (get-in analysis [:analysis :non-zero-count])
         event-name (clojure.string/capitalize (name event-type))]
     [:div.event-section.viz-container
-     [:h3 {:style {:padding-left "300px"}}
+     [:h2 {:style {:padding-left "300px"}}
       (str event-name " Events")]
      [:p {:style {:padding-left "450px"}}
       "Total " (name event-type) " events in selected time window: " events-count]
@@ -285,13 +310,17 @@
 ^:kindly/hide-code
 (defn -main []
   (brain/load-eeg-data! "resources/data/s01.mat")
-  #_(comprehensive-eeg-analysis brain/eeg-data-atom))
+  (-> brain/eeg-data-atom
+      (sig/process-and-save-common-average-references)
+      (sig/load-avg-ref-data!))
+  (comprehensive-eeg-analysis brain/eeg-data-atom))
 
-;uncomment this and run the code with quarto after using 'loag-eeg-data'
+(sig/load-avg-ref-data! brain/eeg-data-atom)
+;test to see this work(keys @brain/eeg-data-atom);check load-eeg-data to see if these files exist, if not create them
+
 ^:kindly/hide-code
-#_(comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 49])
+#_(comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 33 49])
 
 ^:kindly/hide-code
 (comment
-  (comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 49])
-  )
+  (comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 49]))
