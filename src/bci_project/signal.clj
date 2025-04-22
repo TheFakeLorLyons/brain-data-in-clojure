@@ -4,6 +4,9 @@
             [clojure.core.reducers :as r])
   (:import [com.github.psambit9791.jdsp.filter Butterworth]))
 
+^:kindly/hide-code
+(def SRATE 512)
+
 (def movement-keys
   [:movement_left :movement_right :imagery_left :imagery_right])
 
