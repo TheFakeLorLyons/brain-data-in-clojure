@@ -23,19 +23,19 @@
 
 (defn cell->vec
   "MATLAB cell array to a Clojure vector"
-  [cell]
+  [^Cell cell]
   (when cell
     (let [dims (.getDimensions cell)
           rows (first dims)
           cols (second dims)]
-      (vec (for [i (range rows)]
-             (vec (for [j (range cols)]
+      (vec (for [^int i (range rows)]
+             (vec (for [^int j (range cols)]
                     (let [element (.get cell i j)]
                       (convert-element element)))))))))
 
 (defn array->vec
   "MATLAB array to a Clojure vector"
-  [array]
+  [^Array array]
   (when array
     (let [dims (.getDimensions array)
           rows (first dims)
@@ -55,7 +55,7 @@
 
 (defn matrix->vec
   "MATLAB matrix to a Clojure vector up to 2-dimensions."
-  [matrix]
+  [^Matrix matrix]
   (when matrix
     (let [dims (.getDimensions matrix)
           total-elements (apply * dims)]
@@ -68,17 +68,18 @@
                         :type (str (.getType matrix))
                         :elements total-elements}
               values (case (count dims)
-                       1 (vec (for [i (range (first dims))]
+                       1 (vec (for [^int i (range (first dims))]
                                 (.getDouble matrix i)))
-                       2 (vec (for [i (range (first dims))]
-                                (vec (for [j (range (second dims))]
+                       2 (vec (for [^int i (range (first dims))]
+                                (vec (for [^int j (range (second dims))]
                                        (.getDouble matrix i j)))))
                        (throw (Exception. (str "Unsupported dimension count: " (count dims)))))]
           (assoc metadata :values values))))))
 
+(set! *warn-on-reflection* true)
 (defn struct->map
   "MATLAB struct to a Clojure map"
-  [struct]
+  [^Struct struct]
   (when struct
     (let [field-names (.getFieldNames struct)]
       (reduce (fn [acc field-name]
@@ -108,29 +109,31 @@
   "Load EEG data from a MATLAB file into the eeg-data-atom with preprocessing"
   [file-path]
   (reset! eeg-data-atom nil)
-  (let [mat-file (Mat5/readFromFile (clojure.java.io/file file-path))
+  (let [mat-file (time (Mat5/readFromFile (clojure.java.io/file file-path)))
         eeg-struct (.getStruct mat-file "eeg")
         sample-number (if-let [matches (re-find #"s(\d+)\.mat" file-path)]
                         (second matches)
                         "unknown")
-        data (struct->map eeg-struct)
+        data (time (struct->map eeg-struct))
         processed-data {:sample_number  sample-number
-                        :movement_left  (update (:movement_left data)  :values vec)
+                        :movement_left  (update (:movement_left  data) :values vec)
                         :movement_right (update (:movement_right data) :values vec)
-                        :imagery_left   (update (:imagery_left data)   :values vec)
-                        :imagery_right  (update (:imagery_right data)  :values vec)
+                        :imagery_left   (update (:imagery_left   data) :values vec)
+                        :imagery_right  (update (:imagery_right  data) :values vec)
                         :movement_event (update (:movement_event data) :values vec)
-                        :imagery_event  (update (:imagery_event data)  :values vec)
-                        :senloc         (update (:senloc data)         :values vec)
-                        :psenloc        (update (:psenloc data)        :values vec)}]
+                        :imagery_event  (update (:imagery_event  data) :values vec)
+                        :senloc         (update (:senloc         data) :values vec)
+                        :psenloc        (update (:psenloc        data) :values vec)}]
     (reset! eeg-data-atom processed-data)
     {:data-keys (keys processed-data)
-     :num-dimensions (into {} (map (fn [[k v]] [k (:dims v)])
+     :num-dimensions (time (into {} (map (fn [[k v]] [k (:dims v)])
                                    (select-keys processed-data [:movement_left  :movement_right
                                                                 :imagery_left   :imagery_right
                                                                 :movement_event :imagery_event
-                                                                :senloc         :psenloc])))}))
+                                                                :senloc         :psenloc]))))}))
 
 (defn initial-data-preparation [file-path]
   (load-eeg-data! file-path)
   (sig/process-and-save-common-average-references eeg-data-atom))
+
+(load-eeg-data! "resources/data/s12.mat")

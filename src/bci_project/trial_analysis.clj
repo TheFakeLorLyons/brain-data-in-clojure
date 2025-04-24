@@ -2,8 +2,13 @@
   (:require [bci-project.signal :as sig]
             [scicloj.kindly.v4.kind :as kind]))
 
+;=================================================================================================
+                                                         ;         Event Timing Extraction       ;
+;=================================================================================================
+
 ^:kindly/hide-code
-(defn analyze-movement-events
+(defn extract-event-times
+  "Event marker and frequency information."
   [event-data time-range]
   (let [event-values (if (map? event-data)
                        (:values event-data)
@@ -40,6 +45,10 @@
                                  0)
                 :non-zero-count (count non-zero-indices)
                 :non-zero-times (vec non-zero-times)}}))
+
+;=================================================================================================
+                                                         ;  Accessing the EEG-Data from the atom ;
+;=================================================================================================
 
 ^:kindly/hide-code
 (defn get-channel-data
@@ -88,34 +97,3 @@
                                   (first event-values)
                                   event-values)
      :else [])))
-
-^:kindly/hide-code
-(defn detect-bad-trials
-  "Detect bad trials based on amplitude threshold
-   Parameters:
-     - trials: Vector of trial data, each trial is a vector of channel data
-     - srate: Sampling rate (Hz)
-     - threshold: Amplitude threshold (μV)
-     - time-window: [start-ms end-ms] window to analyze"
-  [trials threshold time-window band]
-  (let [start-sample (int (* (/ (first time-window) 1000) sig/SRATE))
-        end-sample (int (* (/ (second time-window) 1000) sig/SRATE))]
-    (filterv
-     (fn [trial-idx]
-       (let [trial-data (nth trials trial-idx)
-             ;; Filter in the SMR band (8-30 Hz)
-             filtered-data (for [channel trial-data]
-                             (sig/band-pass-butterworth-filter channel band sig/SRATE))
-             ;; Check if any channel exceeds the threshold in the time window
-             exceeds-threshold? (some (fn [channel]
-                                        (let [window-data (subvec channel start-sample end-sample)]
-                                          (or (> (apply max window-data) threshold)
-                                              (< (apply min window-data) (- threshold)))))
-                                      filtered-data)]
-         exceeds-threshold?))
-     (range (count trials)))))
-
-(defn mark-bad-trials
-  "Add bad trial markers to the dataset"
-  [data-atom bad-trial-indices]
-  (assoc @data-atom :bad-trials (set bad-trial-indices)))

@@ -1,8 +1,9 @@
 ^:kindly/hide-code
 (ns bci-project.notebook
-  (:require [bci-project.brain :as brain]
+  (:require [bci-project.trial-analysis :as analysis]
+            [bci-project.brain :as brain]
+            [bci-project.bad :as bad]
             [bci-project.components :as ui]
-            [bci-project.trial-analysis :as analysis]
             [scicloj.kindly.v4.kind :as kind])
   (:import java.io.File
            javax.imageio.ImageIO))
@@ -21,7 +22,7 @@
   "Container for categorized charts, and contains the event information (how many events occurred in the time window)"
   [data-atom channel-indices time-window event-type frequency-band]
   (let [event-key (keyword (str (name event-type) "_event"))
-        analysis (analysis/analyze-movement-events (event-key @data-atom) time-window)
+        analysis (analysis/extract-event-times (event-key @data-atom) time-window)
         events-count (get-in analysis [:analysis :non-zero-count])
         event-name (clojure.string/capitalize (name event-type))]
     [:div.event-section.viz-container
@@ -88,6 +89,7 @@
 ^:kindly/hide-code
 (defn -main []
   (brain/initial-data-preparation "resources/data/s13.mat")
+  (bad/obtain-all-bad-sample-data brain/eeg-data-atom)
   (comprehensive-eeg-analysis brain/eeg-data-atom))
 
 ^:kindly/hide-code
@@ -95,4 +97,4 @@
 
 ^:kindly/hide-code
 (comment
-  (comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 49]))
+  (comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 33 49]))
