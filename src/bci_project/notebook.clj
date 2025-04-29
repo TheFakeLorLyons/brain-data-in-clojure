@@ -130,7 +130,7 @@
 ^:kindly/hide-code
 (defn filter-single-channel
   [data ch-idx time-window frequency-band eeg-key]
-  (let [eeg-data (eeg-key @data)
+  (let [eeg-data (eeg-key data)
         eeg-values (:values eeg-data)
 
         filter-padding 1
@@ -171,10 +171,10 @@
 (defn eeg-visualization
   [data channel-indices time-window frequency-band event-type eeg-key]
   (try
-    (let [eeg-data (eeg-key @data)
+    (let [eeg-data (eeg-key data)
           eeg-values (:values eeg-data)
 
-          events (event-type @data)
+          events (event-type data)
           event-values (:values events)
 
           start-time (first time-window)
@@ -221,16 +221,16 @@
 
 ^:kindly/hide-code
 (defn generate-chart
-  [data-atom channel-indices time-window event-type side frequency-band]
+  [data channel-indices time-window event-type side frequency-band]
   (let [event-key (keyword (str (name event-type) "_event"))
         eeg-key (keyword (str (name event-type) "_" (name side)))]
-      (eeg-visualization data-atom channel-indices time-window frequency-band event-key eeg-key)))
+    (eeg-visualization data channel-indices time-window frequency-band event-key eeg-key)))
 
 ^:kindly/hide-code
 (defn build-category-section
-  [data-atom channel-indices time-window event-type frequency-band]
+  [data channel-indices time-window event-type frequency-band]
   (let [event-key (keyword (str (name event-type) "_event"))
-        analysis (analyze-movement-events (event-key @data-atom) time-window)
+        analysis (analyze-movement-events (event-key data) time-window)
         events-count (get-in analysis [:analysis :non-zero-count])
         event-name (clojure.string/capitalize (name event-type))]
     [:div.event-section.viz-container
@@ -244,30 +244,30 @@
        [:h3 {:style {:font-weight "bold"}}
         "Left Side"]
        [:div {:style {:display "flex"}}
-        [:div (generate-chart data-atom channel-indices time-window event-type :left frequency-band)]]]
+        [:div (generate-chart data channel-indices time-window event-type :left frequency-band)]]]
 
       [:div
        [:h3 {:style {:font-weight "bold"}}
         "Right Side"]
        [:div {:style {:display "flex"}}
-        [:div (generate-chart data-atom channel-indices time-window event-type :right frequency-band)]]]]]))
+        [:div (generate-chart data channel-indices time-window event-type :right frequency-band)]]]]]))
 
 ^:kindly/hide-code
 (defn movement-and-imagery-visualized
-  [data-atom channel-indices time-window frequency-band]
+  [data channel-indices time-window frequency-band]
   [:div.raw-data-section.viz-container
-   (build-category-section data-atom channel-indices time-window :movement frequency-band)
-   (build-category-section data-atom channel-indices time-window :imagery frequency-band)])
+   (build-category-section data channel-indices time-window :movement frequency-band)
+   (build-category-section data channel-indices time-window :imagery frequency-band)])
 
 ^:kindly/hide-code
 (defn comprehensive-eeg-analysis
-  ([data-atom]
-   (comprehensive-eeg-analysis data-atom [0 10] [6 13 14 48 49 50 60 63] :alpha))
-  ([data-atom time-window channel-indices]
-   (comprehensive-eeg-analysis data-atom time-window channel-indices :alpha))
-  ([data-atom time-window channel-indices frequency-band]
+  ([data]
+   (comprehensive-eeg-analysis data [0 10] [6 13 14 48 49 50 60 63] :alpha))
+  ([data time-window channel-indices]
+   (comprehensive-eeg-analysis data time-window channel-indices :alpha))
+  ([data time-window channel-indices frequency-band]
    (let [id (str "eeg-viz-" (System/currentTimeMillis))
-         sample-number (:sample_number @data-atom)]
+         sample-number (:sample_number data)]
      (kind/hiccup
       [:div.column-screen {:id id
                            :style {:display "flex"
@@ -280,18 +280,24 @@
                                       :flex-direction "column"
                                       :align-self "center"
                                       :justify-content "center"}}
-        (movement-and-imagery-visualized data-atom channel-indices time-window frequency-band)]]))))
+        (movement-and-imagery-visualized data channel-indices time-window frequency-band)]]))))
 
-^:kindly/hide-code
-(defn -main []
-  (brain/load-eeg-data! "resources/data/s01.mat")
-  #_(comprehensive-eeg-analysis brain/eeg-data-atom))
+;; ^:kindly/hide-code
+;; (defn -main []
+;;   (brain/memoized-eeg-data "resources/data/s01.mat")
+;;   #_(comprehensive-eeg-analysis brain/eeg-data-atom))
 
-;uncomment this and run the code with quarto after using 'loag-eeg-data'
+                                        ;uncomment this and run the code with quarto after using 'loag-eeg-data'
 ^:kindly/hide-code
 #_(comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 49])
 
 ^:kindly/hide-code
-(comment
-  (comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 49])
-  )
+(delay
+  (let [data (:processed-data
+              (brain/memoized-eeg-data "resources/data/s01.mat"))]
+    (comprehensive-eeg-analysis data [99 107] [12 49])))
+
+;; problems with memoize:
+;; - doesn't foget (use a cache library if we need some forget rule)
+;; - inefficient in concurrent situations
+;; - if we revevaluate the definition, it forgets everything (may want to use defonce)
