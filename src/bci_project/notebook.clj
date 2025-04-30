@@ -88,12 +88,9 @@
 
 ^:kindly/hide-code
 (defn -main []
-  (brain/initial-data-preparation "resources/data/s13.mat")
+  (brain/initial-data-preparation "resources/data/s01.mat")
   (bad/obtain-all-bad-sample-data brain/eeg-data-atom)
   (comprehensive-eeg-analysis brain/eeg-data-atom))
-
-^:kindly/hide-code
-#_(comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 33 49])
 
 ^:kindly/hide-code
 (comment

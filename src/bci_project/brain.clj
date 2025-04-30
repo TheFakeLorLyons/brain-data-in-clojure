@@ -81,8 +81,8 @@
   "MATLAB struct to a Clojure map"
   [^Struct struct]
   (when struct
-    (let [field-names (.getFieldNames struct)]
-      (reduce (fn [acc field-name]
+    (let [field-names (.getFieldNames struct)]; it takes effort for the JVM to know what to do
+      (reduce (fn [acc field-name]            ; this is called reflection
                 (let [value (.get struct field-name)]
                   (assoc acc (keyword field-name)
                          (convert-element value))))
