@@ -102,7 +102,7 @@
         filter-time-window [(- (first time-window) filter-padding)
                             (+ (second time-window) filter-padding)]
 
-        channel-data (analysis/get-channel-data eeg-values ch-idx filter-time-window)
+        channel-data (analysis/get-channel-data-tensor eeg-values ch-idx filter-time-window)
         
         high-pass-data (sig/high-pass-butterworth-filter (vec channel-data))
         band-pass-data (sig/band-pass-butterworth-filter high-pass-data frequency-band)
@@ -153,11 +153,11 @@
         filter-padding 1
         filter-time-window [(- (first time-window) filter-padding)
                             (+ (second time-window) filter-padding)]
-        channel-data (analysis/get-channel-data avg-ref-values ch-idx filter-time-window)
+        channel-data (analysis/get-channel-data-tensor avg-ref-values ch-idx filter-time-window)
 
         high-pass-data (sig/high-pass-butterworth-filter (vec channel-data))
         band-pass-data (sig/band-pass-butterworth-filter high-pass-data frequency-band)
-        
+
         padding-samples (int (* filter-padding sig/SRATE))
         display-filtered (subvec band-pass-data
                                  padding-samples
@@ -246,6 +246,86 @@
 
 ^:kindly/hide-code
 (defn eeg-templates
+  "Individual charts for each sensor in a particular time window of one trial.
+   Updated to work with tensor data format."
+  [data channel-indices time-window frequency-band event-type eeg-key & {:keys [trial-index] :or {trial-index 0}}]
+  (try
+    (let [eeg-data (get @data eeg-key )
+          eeg-values (:values eeg-data)
+
+          avg-ref-key (case eeg-key
+                        :movement_left :avg_ref_mvmt_left
+                        :movement_right :avg_ref_mvmt_right
+                        :imagery_left :avg_ref_img_left
+                        :imagery_right :avg_ref_img_right
+                        nil)
+
+          avg-ref-data (when avg-ref-key (get @data avg-ref-key))
+          avg-ref-values (when avg-ref-data (:values avg-ref-data))
+
+          events (get @data event-type )
+          event-values (:values events)
+
+          start-time (first time-window)
+          end-time (second time-window)
+          start-sample (int (* start-time sig/SRATE))
+          end-sample (min (int (* end-time sig/SRATE)) (second (:dims eeg-data)))
+
+          channels-data (analysis/prepare-eeg-dataset eeg-values channel-indices start-sample end-sample)
+          avg-ref-channels-data (when avg-ref-values
+                                  (analysis/prepare-eeg-dataset avg-ref-values channel-indices start-sample end-sample))
+         
+          non-zero-events (analysis/prepare-events-dataset event-values start-sample end-sample event-type)
+
+          bad-trials-analysis (:bad-trials-analysis @data)
+          current-trial-analysis (when bad-trials-analysis
+                                   (first (filter #(= (:trial-index %) trial-index) bad-trials-analysis)))
+          sorted-channels (sort channel-indices)]
+      (kind/hiccup
+       [:div.eeg-visualization
+        [:h3 (str "EEG Channel Data - " (name eeg-key))]
+        [:div.charts-container {:style "display: flex; flex-wrap: wrap;"}
+         [:div.charts-column {:style "flex: 3;"}
+          (for [ch-idx sorted-channels
+                :when (contains? channels-data ch-idx)
+                :let [position-label (get-in regions/channel-brain-regions [ch-idx :position-name] "Unknown")
+                      image-label (get-in regions/channel-brain-regions [ch-idx :path-endpoint] "Unknown")
+                      channel-analysis (when current-trial-analysis
+                                         (first (filter #(= (:channel-index %) ch-idx)
+                                                        (:channels-analysis current-trial-analysis))))
+                      channel-is-bad (when channel-analysis (:is-bad channel-analysis))]]
+            [:div.channel-chart {:style "margin-bottom: 10px;"}
+             [:div.chart-with-label {:style "display: flex; align-items: center;"}
+              [:div.channel-label {:style "width: 120px; text-align: right; padding-right: 15px; font-weight: bold; padding-bottom: 30px;"}
+               (str "Channel: " (inc ch-idx))
+               [:br]
+               [:span {:style "font-size: 0.9em; align: top;"}
+                position-label]
+               (if channel-is-bad
+                 [:div {:style "color: red; font-weight: bold; margin-top: 5px;"}
+                  "⚠️ BAD"]
+                 [:div {:style "color: green; font-weight: bold; margin-top: 5px;"}
+                  "✅ GOOD"])]
+              [:div.charts-with-picture {:style "flex-grow: 1;"}
+               [:div.raw-and-filtered {:style "display: flex; flex-direction: column;"}
+                (raw-eeg-timeseries (get channels-data ch-idx) non-zero-events start-time end-time)
+                (filter-single-channel data ch-idx time-window frequency-band eeg-key)
+                (avg-ref-eeg-timeseries (get avg-ref-channels-data ch-idx) non-zero-events start-time end-time)
+                (filter-avg-ref-channel data ch-idx time-window frequency-band eeg-key)
+                (when (not (= ch-idx (last channel-indices)))
+                  [:p {:style {:align-self "center"}} "----------------------------------------------"])]]
+              (when (or (= eeg-key :imagery_left) (= eeg-key :movement_left))
+                [:div.head-model {:style {:display "flex" :width "190px" :height "190px"}}
+                 (kind/image
+                  (ImageIO/read (File. (str "resources/images/channel-labels" image-label ".png"))))])]])]]]))
+    (catch Exception e
+      (println "Error in visualization:" (.getMessage e))
+      (.printStackTrace e)
+      [:div
+       [:h2 "Error Visualizing EEG Data"]
+       [:p "An error occurred: " (.getMessage e)]])))
+
+#_(defn eeg-templates
   "Individual charts for each sensor in a particular time window of one trial."
   [data channel-indices time-window frequency-band event-type eeg-key & {:keys [trial-index] :or {trial-index 0}}]
   (try

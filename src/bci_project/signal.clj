@@ -1,7 +1,9 @@
 (ns bci-project.signal
   (:require [clojure.java.io :as io]
             [clojure.edn :as edn]
-            [clojure.core.reducers :as r])
+            [clojure.core.reducers :as r]
+            [tech.v3.tensor :as tensor]
+            [tech.v3.tensor.dimensions :as tensor-dims])
   (:import [com.github.psambit9791.jdsp.filter Butterworth]))
 
 ;=================================================================================================
@@ -14,8 +16,15 @@
 (def BAD-TRIAL-THRESHOLD 100)
 
 ^:kindly/hide-code
-(def movement-keys
-  [:movement_left :movement_right :imagery_left :imagery_right])
+(def filtered-keys
+  [:filtered_movement_left :filtered_movement_right
+   :filtered_imagery_left :filtered_imagery_right])
+
+^:kindly/hide-code
+(def standard-keys
+  [:movement_left :movement_right
+   :imagery_left :imagery_right])
+
 ^:kindly/hide-code
 (def avg-ref-keys
   [:avg_ref_mvmt_left :avg_ref_mvmt_right :avg_ref_img_left :avg_ref_img_right])
@@ -24,140 +33,86 @@
                                                          ;        Common Average Reference       ;
 ;=================================================================================================
 
-(defn average-vector
-  "Calculate average vector across all channels."
-  [chunk]
-  (let [n-channels (count chunk)
-        n-samples (count (first chunk))
-        avg-array (double-array n-samples 0.0)]
-    (doseq [channel chunk]
-      (dotimes [j n-samples]
-        (aset avg-array j (+ (aget avg-array j)
-                             (/ (double (nth channel j)) n-channels)))))
-    (vec avg-array)))
+(defn calculate-common-average-reference
+  "Calculate common average reference for all channels at each time point"
+  [eeg-tensor dims]
+  (let [[num-channels num-samples] dims]
+    (mapv (fn [sample]
+            (let [channel-values (mapv (fn [ch]
+                                         (tensor/mget eeg-tensor ch sample))
+                                       (range num-channels))]
+              (/ (reduce + channel-values) num-channels)))
+          (range num-samples))))
 
-(defn common-average-reference
-  "Apply common average reference in chunks to avoid memory issues."
-  [data chunk-size output-file]
-  (if-let [values (:values data)]
-    (let [eeg-channels (vec (take 64 values))
-          non-eeg-channels (vec (drop 64 values))
-          n-samples (count (first eeg-channels))
-          n-chunks (int (Math/ceil (/ n-samples (double chunk-size))))]
-      (println "Processing" n-samples "samples in" n-chunks "chunks")
-      (let [temp-file (str output-file ".tmp")]
-        (with-open [w (clojure.java.io/writer temp-file)]
-          (.write w "{")
-          (doseq [[k v] (dissoc data :values)]
-            (.write w (str ":" (name k) " "))
-            (.write w (pr-str v))
-            (.write w ", "))
-          (.write w ":values ["))
-        (let [channel-batch-size 8]
-          (doseq [chan-batch (partition-all channel-batch-size (range (count eeg-channels)))]
-            (println "Processing channels" (inc (first chan-batch))
-                     "to" (inc (last chan-batch))
-                     "of" (count eeg-channels))
-            (let [processed-channels
-                  (mapv
-                   (fn [chan-idx]
-                     (let [channel (nth eeg-channels chan-idx)
-                           result (transient [])]
-                       (loop [start 0]
-                         (if (< start n-samples)
-                           (let [end (min n-samples (+ start chunk-size))
-                                 chunk (mapv #(subvec % start end) eeg-channels)
-                                 avg (average-vector chunk)
-                                 ch-data (subvec channel start end)
-                                 refd (mapv - ch-data avg)]
-                             (reduce conj! result refd)
-                             (recur end))
-                           (persistent! result)))))
-                   chan-batch)]
-              (with-open [w (clojure.java.io/writer temp-file :append true)]
-                (doseq [chan processed-channels]
-                  (.write w (pr-str chan))
-                  (.write w " ")))
-              (System/gc))))
-        (with-open [w (clojure.java.io/writer temp-file :append true)]
-          (doseq [chan non-eeg-channels]
-            (.write w (pr-str chan))
-            (.write w " "))
-          (.write w "]}")))
-      (.renameTo (java.io.File. (str output-file ".tmp"))
-                 (java.io.File. output-file))
-      (dissoc data :values)))
-  data)
+(defn apply-common-average-reference
+  "Apply common average reference to EEG data"
+  [eeg-tensor dims]
+  (let [[num-channels num-samples] dims
+        ;; Precompute average per sample
+        avg-per-sample
+        (mapv (fn [sample]
+                (/ (reduce + (map (fn [ch]
+                                    (tensor/mget eeg-tensor ch sample))
+                                  (range num-channels)))
+                   num-channels))
+              (range num-samples))]
+    ;; Subtract average from each value
+    (tensor/compute-tensor
+     dims
+     (fn [ch sample]
+       (- (tensor/mget eeg-tensor ch sample)
+          (nth avg-per-sample sample)))
+     :float64)))
 
-(defn load-avg-ref-data!
-  "Load the processed average reference data from saved files and update the eeg-data-atom."
+(defn load-common-average-reference-data
+  "Load common average reference data from saved files and update the eeg-data-atom."
   [eeg-data-atom]
   (let [eeg-data @eeg-data-atom
         missing-keys (filter #(not (contains? eeg-data %)) avg-ref-keys)]
-
     (when (seq missing-keys)
       (let [sample-number (:sample_number eeg-data)
             base-path (str "resources/average-referencing/s" sample-number)
             files (into {} (map (fn [key]
                                   [key (str base-path "/"
-                                            (name (case key
-                                                    :avg_ref_mvmt_left "movement_left"
-                                                    :avg_ref_mvmt_right "movement_right"
-                                                    :avg_ref_img_left "imagery_left"
-                                                    :avg_ref_img_right "imagery_right"
-                                                    key)) ".edn")])
-                                missing-keys))
-            loaded-data (reduce-kv
-                         (fn [acc key file-path]
-                           (if (.exists (java.io.File. file-path))
-                             (let [data (read-string (slurp file-path))]
-                               (println "Loaded data for" key)
-                               (assoc acc key data))
-                             (do
-                               (println "File not found:" file-path)
-                               acc)))
-                         {} files)]
-        (println "Loaded data keys:" (keys loaded-data))
-        (when (seq loaded-data)
-          (swap! eeg-data-atom #(merge % loaded-data)))))))
+                                            (name key) "-car.edn")])
+                                avg-ref-keys))]
+        (doseq [[key file] files]
+          (when (.exists (java.io.File. file))
+            (println "Loading" (name key) "referenced data from" file)
+            (let [referenced-data (read-string (slurp file))]
+              (swap! eeg-data-atom assoc-in [(keyword (str (name key) "_car"))] referenced-data))))))))
 
-(defn process-stream-reducers
-  "Process a single data stream using reducers and save it to a file"
-  [eeg-data-atom key]
-  (let [eeg-data @eeg-data-atom
-        sample-number (:sample_number eeg-data)
-        base-path (str "resources/average-referencing/s" sample-number)
-        file-path (str base-path "/" (name key) ".edn")]
-    (if (.exists (java.io.File. file-path))
-      (do
-        (println (str "Found existing " key " data, loading..."))
-        (load-avg-ref-data! eeg-data-atom)
-        nil)
-      (do
-        (println (str "Processing " key " data..."))
-        (try
-          (.mkdirs (java.io.File. (str base-path "/")))
-          (if-let [data (get eeg-data key)]
-            (let [chunk-size 5000]
-              (common-average-reference data chunk-size file-path)
-              (println (str "Saved " key " data to disk"))
-              (System/gc)
-              (load-avg-ref-data! eeg-data-atom)
-              (dissoc data :values))
-            (do
-              (println (str "No data found for " key))
-              nil))
-          (catch Exception e
-            (println (str "Error processing " key " data: " (.getMessage e)))
-            (.printStackTrace e)
-            nil))))))
 
 (defn process-and-save-common-average-references
-  [eeg-data-atom]
-  (doseq [key [:movement_left :movement_right :imagery_left :imagery_right]]
-    (process-stream-reducers eeg-data-atom key)
-    (System/gc))
-  nil)
+  "Process all trial types and save common average referenced data to the data atom"
+  [data-atom]
+  (println "Applying common average referencing to all trial types...")
+  (let [data @data-atom
+        trial-types standard-keys
+        avg-ref-keys {:movement_left :avg_ref_mvmt_left
+                      :movement_right :avg_ref_mvmt_right
+                      :imagery_left :avg_ref_img_left
+                      :imagery_right :avg_ref_img_right}]
+
+    (doseq [trial-type trial-types]
+      (let [eeg-data (get data trial-type)
+            eeg-tensor (:values eeg-data)
+            dims (:dims eeg-data)
+            avg-ref-key (get avg-ref-keys trial-type)]
+
+        (println "Processing" (name trial-type) "for common average reference")
+        (let [car-tensor (apply-common-average-reference eeg-tensor dims)]
+
+          (swap! data-atom assoc avg-ref-key
+                 {:values car-tensor
+                  :dims dims
+                  :type (:type eeg-data)
+                  :elements (:elements eeg-data)})
+
+          (println "Completed common average referencing for" (name trial-type)))))
+
+    (println "Common average referencing complete for all trial types.")))
+
 
 ;=================================================================================================
                                                          ;                  Filter               ;
@@ -195,9 +150,49 @@
 (defn high-pass-butterworth-filter
   "Apply high-pass filter (>0.5 Hz) to remove drifts from EEG signal"
   [signal]
-  (butterworth-filter signal 0.5 nil SRATE 4 :high-pass))
+  (let [signal-array (cond
+                       (tensor/tensor? signal) (double-array (tensor/->jvm signal))
+                       (vector? signal) (double-array signal)
+                       :else signal)]
+    (let [filtered (butterworth-filter signal-array 0.5 nil SRATE 4 :high-pass)]
+      (if (tensor/tensor? signal)
+        (tensor/->tensor filtered)
+        filtered))))
 
 (defn band-pass-butterworth-filter
   [signal band-name]
-  (let [[low-freq high-freq] (frequency-range band-name)]
-    (butterworth-filter signal low-freq high-freq SRATE 4 :band-pass)))
+  (let [[low-freq high-freq] (frequency-range band-name)
+        signal-array (cond
+                       (tensor/tensor? signal) (double-array (tensor/->jvm signal))
+                       (vector? signal) (double-array signal)
+                       :else signal)
+        filtered (butterworth-filter signal-array low-freq high-freq SRATE 4 :band-pass)]
+    (if (tensor/tensor? signal)
+      (tensor/->tensor filtered)
+      filtered)))
+
+(defn apply-initial-filtering!
+  "Apply initial Butterworth filtering to the EEG data"
+  [data-atom frequency-band]
+  (println "Applying initial Butterworth filtering...")
+  (let [data @data-atom
+        trial-types [:movement_left :movement_right :imagery_left :imagery_right]]
+    (doseq [trial-type trial-types]
+      (let [eeg-data (get data trial-type)
+            eeg-tensor (:values eeg-data)
+            dims (:dims eeg-data)
+            num-channels (first dims)
+            num-samples (second dims)]
+        (println "Filtering channels for" (name trial-type))
+        (let [filtered-tensor (tensor/new-tensor dims)]
+          (doseq [ch (range num-channels)]
+            (let [channel-data (mapv #(tensor/mget eeg-tensor ch %) (range num-samples))
+                  high-pass-data (high-pass-butterworth-filter channel-data)
+                  band-pass-data (band-pass-butterworth-filter high-pass-data frequency-band)]
+              (doseq [i (range (count band-pass-data))]
+                (tensor/mset! filtered-tensor ch i (nth band-pass-data i)))))
+          (let [filtered-key (keyword (str "filtered_" (name trial-type)))]
+            (swap! data-atom assoc filtered-key {:dims dims 
+                                                 :values filtered-tensor}))
+          (println "Completed filtering for" (name trial-type))))))
+  (println "Initial filtering complete."))

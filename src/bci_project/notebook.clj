@@ -4,6 +4,7 @@
             [bci-project.brain :as brain]
             [bci-project.bad :as bad]
             [bci-project.components :as ui]
+            [bci-project.signal :as sig]
             [scicloj.kindly.v4.kind :as kind])
   (:import java.io.File
            javax.imageio.ImageIO))
@@ -22,7 +23,7 @@
   "Container for categorized charts, and contains the event information (how many events occurred in the time window)"
   [data-atom channel-indices time-window event-type frequency-band]
   (let [event-key (keyword (str (name event-type) "_event"))
-        analysis (analysis/extract-event-times (event-key @data-atom) time-window)
+        analysis (analysis/extract-event-indices (event-key @data-atom))
         events-count (get-in analysis [:analysis :non-zero-count])
         event-name (clojure.string/capitalize (name event-type))]
     [:div.event-section.viz-container
@@ -86,12 +87,56 @@
                                       :justify-content "center"}}
         (movement-and-imagery-visualized data-atom channel-indices time-window frequency-band)]]))))
 
-^:kindly/hide-code
+
+
+(defn initial-data-preparation
+  "Complete data preparation pipeline following the correct order:
+   1. Load raw data
+   2. Apply initial filtering
+   3. Detect and remove bad trials
+   4. Apply common average referencing"
+  [#_file-path data] ;add options for bands and such
+  (println "\n=== Starting EEG Data Preparation Pipeline ===")
+
+  (println "\n--- Step 1: Loading Raw Data ---")
+  ;(brain/load-eeg-data! file-path)
+  (println "Raw data loaded successfully.")
+
+  (println "\n--- Step 2: Applying Initial Filtering ---")
+  (sig/apply-initial-filtering! brain/eeg-data-atom :alpha)
+
+  (println "\n--- Step 3: Detecting Bad Trials ---")
+  (bad/obtain-all-bad-sample-data brain/eeg-data-atom)
+  (println "Bad trial detection complete.")
+
+  (println "\n--- Step 4: Applying Common Average Referencing ---")
+  (sig/process-and-save-common-average-references brain/eeg-data-atom)
+  (println "Common average referencing complete.")
+
+  (println "\n=== EEG Data Preparation Complete ===")
+
+  data)
+
+#_(initial-data-preparation brain/eeg-data-atom)
+
 (defn -main []
+  (let [prepared-data (initial-data-preparation "resources/data/s01.mat")]
+    (comprehensive-eeg-analysis prepared-data)))
+
+^:kindly/hide-code
+#_(defn -main []
   (brain/initial-data-preparation "resources/data/s01.mat")
   (bad/obtain-all-bad-sample-data brain/eeg-data-atom)
   (comprehensive-eeg-analysis brain/eeg-data-atom))
 
 ^:kindly/hide-code
+#_(comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [20 33 49])
+
+^:kindly/hide-code
 (comment
   (comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 33 49]))
+
+;TODO
+;Memoize where the atom is
+;Improve bad data selection
+;Chart bad data
