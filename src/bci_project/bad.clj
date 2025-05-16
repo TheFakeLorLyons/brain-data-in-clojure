@@ -19,7 +19,7 @@
         channel-count (first (tensor-dims/shape eeg-values))
 
         channel-analyses (for [ch-idx (range channel-count)]
-                           (let [channel-data (extract-channel-data eeg-values ch-idx)
+                           (let [channel-data (analysis/extract-channel-data eeg-values ch-idx)
 
                                  rms (Math/sqrt (/ (reduce + (map #(* % %) channel-data))
                                                    (count channel-data)))
@@ -39,9 +39,9 @@
 (def bag-voltage-frame-segment
   [500 2500])
 
-(func/sum (:values (:movement_event @brain/eeg-data-atom)))
-(dt/shape (:values (:movement_event @brain/eeg-data-atom)))
-(tensor/->tensor (argops/argfilter #(= 1.0 %) (:values (:movement_event @brain/eeg-data-atom))))
+;(func/sum (:values (:movement_event @brain/eeg-data-atom)))
+;(dt/shape (:values (:movement_event @brain/eeg-data-atom)))
+;(tensor/->tensor (argops/argfilter #(= 1.0 %) (:values (:movement_event @brain/eeg-data-atom))))
 
 ^:kindly/hide-code
 (defn create-trials

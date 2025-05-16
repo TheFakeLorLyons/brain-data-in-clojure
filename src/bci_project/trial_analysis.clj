@@ -2,6 +2,7 @@
   (:require [bci-project.signal :as sig]
             [tech.v3.tensor :as tensor]
             [tech.v3.datatype :as dt]
+            [tech.v3.datatype.argops :as argops]
             [scicloj.kindly.v4.kind :as kind]))
 
 ;=================================================================================================
@@ -94,43 +95,44 @@
      channel-indices)))
 
 (defn extract-event-indices
-  "Extract event indices from the event data, handling various possible formats.
-   Returns a vector of indices where events occur."
   [event-data]
-  (let [values (:values event-data)]
-    (vec (keep-indexed (fn [idx val-group]
-                         (when (some (fn [v] (and (number? v) (not (zero? v)))) val-group)
-                           idx))
-                       values))
-    (sequential? values)))
+  (try
+    (let [tensor-values (if (and (map? event-data) (:values event-data))
+                          (:values event-data)
+                          event-data)]
+      (let [shape (dt/shape tensor-values)
+            flat-tensor (if (and (= 2 (count shape))
+                                 (= 1 (first shape)))
+                          (tensor/reshape tensor-values [(second shape)])
+                          tensor-values)
+            indices (argops/argfilter #(= 1.0 %) flat-tensor)
+            plain-indices (mapv long indices)]
+        plain-indices))
+    (catch Exception e
+      (println "Error in argfilter in event extraction:" (.getMessage e))
+      (.printStackTrace e)
+      [])))
 
 (defn prepare-events-dataset
-  "Convert events data to format suitable for visualization.
-   Handle multiple possible data structures."
   [event-data start-sample end-sample event-type]
   (try
-    (let [event-indices (if (map? event-data)
-                          (extract-event-indices event-data)
-
-                          (if (sequential? event-data)
-                            (if (every? number? event-data)
-                              (vec (filter (fn [idx] (and (>= idx start-sample) (< idx end-sample))) event-data))
-                              (vec (keep-indexed (fn [idx val]
-                                                   (when (and (number? val)
-                                                              (not (zero? val))
-                                                              (>= idx start-sample)
-                                                              (< idx end-sample))
-                                                     idx))
-                                                 event-data)))
-                            []))
-          relevant-indices (filter #(and (>= % start-sample) (< % end-sample)) event-indices)
-          event-times (mapv (fn [idx]
-                              {:time (/ idx sig/SRATE)
-                               :event-type (name event-type)
-                               :value 1})
-                            relevant-indices)]
-      event-times)
+    (if (nil? event-data)
+      (do
+        [])
+      (let [event-indices (extract-event-indices event-data)
+            relevant-indices (filter #(and (number? %)
+                                           (>= % start-sample)
+                                           (< % end-sample))
+                                     event-indices)
+            event-times (mapv (fn [idx]
+                                {:time (/ (long idx) sig/SRATE)
+                                 :event-type (if (keyword? event-type)
+                                               (name event-type)
+                                               (str event-type))
+                                 :value 1})
+                              relevant-indices)]
+        event-times))
     (catch Exception e
-      (println "Error preparing events dataset:" (.getMessage e))
+      (println "Error preparing direct events:" (.getMessage e))
       (.printStackTrace e)
       [])))

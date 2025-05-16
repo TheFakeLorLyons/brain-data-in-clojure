@@ -72,16 +72,11 @@
                         :elements total-elements}
               values (case (count dims)
                        1
-                       #_(vec (for [^int i (range (first dims))]
-                                (.getDouble matrix i)))
                        (tensor/compute-tensor dims
                                               (fn [^long i]
                                                 (.getDouble matrix i))
                                               :float32)
                        2
-                       #_(vec (for [^int i (range (first dims))]
-                                (vec (for [^int j (range (second dims))]
-                                       (.getDouble matrix i j)))))
                        (tensor/compute-tensor dims
                                               (fn [^long i
                                                    ^long j]
@@ -152,8 +147,4 @@
 (def memoized-eeg-data
   (memoize load-eeg-data!))
 
-(defn initial-data-preparation [file-path]
-  (load-eeg-data! file-path)
-  #_(sig/process-and-save-common-average-references eeg-data-atom))
-
-#_(load-eeg-data! "resources/data/s12.mat")
+#_(load-eeg-data! "resources/data/s01.mat")

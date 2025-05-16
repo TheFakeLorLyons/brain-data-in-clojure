@@ -48,16 +48,14 @@
   "Apply common average reference to EEG data"
   [eeg-tensor dims]
   (let [[num-channels num-samples] dims
-        ;; Precompute average per sample
-        avg-per-sample
+        avg-per-sample               ; Precompute average per sample
         (mapv (fn [sample]
                 (/ (reduce + (map (fn [ch]
                                     (tensor/mget eeg-tensor ch sample))
                                   (range num-channels)))
                    num-channels))
               (range num-samples))]
-    ;; Subtract average from each value
-    (tensor/compute-tensor
+    (tensor/compute-tensor           ; Subtract average from each value
      dims
      (fn [ch sample]
        (- (tensor/mget eeg-tensor ch sample)

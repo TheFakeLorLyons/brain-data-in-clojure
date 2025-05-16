@@ -87,7 +87,18 @@
                                       :justify-content "center"}}
         (movement-and-imagery-visualized data-atom channel-indices time-window frequency-band)]]))))
 
+(def null-writer
+  (proxy [java.io.Writer] []
+    (write [& args])
+    (flush [])
+    (close [])))
 
+(defmacro with-silent-eval
+  "Evaluates body with *out* bound to a null writer that discards output.
+   Use this to wrap Clay evaluations that produce unwanted console output."
+  [& body]
+  `(binding [*out* null-writer]
+     ~@body))
 
 (defn initial-data-preparation
   "Complete data preparation pipeline following the correct order:
@@ -117,8 +128,6 @@
 
   data)
 
-#_(initial-data-preparation brain/eeg-data-atom)
-
 (defn -main []
   (let [prepared-data (initial-data-preparation "resources/data/s01.mat")]
     (comprehensive-eeg-analysis prepared-data)))
@@ -130,13 +139,16 @@
   (comprehensive-eeg-analysis brain/eeg-data-atom))
 
 ^:kindly/hide-code
-#_(comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [20 33 49])
+(with-silent-eval
+  #_(comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [20 33 49]))
 
 ^:kindly/hide-code
 (comment
-  (comprehensive-eeg-analysis brain/eeg-data-atom [99 107] [12 33 49]))
+  (with-silent-eval
+   (comprehensive-eeg-analysis brain/eeg-data-atom [62 66] [12 46])))
 
 ;TODO
 ;Memoize where the atom is
 ;Improve bad data selection
 ;Chart bad data
+;private
